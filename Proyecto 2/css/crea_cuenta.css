@@ -1,0 +1,36 @@
+ #multi-role-select {
+            height: auto;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #fff;
+        }
+
+/* Quitar flechas de inputs tipo number */
+input.no-spin::-webkit-outer-spin-button,
+input.no-spin::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+input.no-spin {
+    appearance: textfield;       /* estándar */
+    -moz-appearance: textfield;  /* Firefox viejo */
+}
+
+body {
+    font-family: 'Poppins', sans-serif;
+    min-height: 100vh;
+    overflow-y: auto;   /* ✅ permite scroll vertical */
+    overflow-x: hidden; /* opcional: oculta scroll horizontal */
+}
+
+.container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+    padding-top: 180px; /* <-- AGREGA ESTA LÍNEA AQUÍ */
+    box-sizing: border-box;
+}
