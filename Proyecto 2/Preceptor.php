@@ -894,83 +894,120 @@ if ($vista == 'resumen') { $vista = 'mis_cursos'; }
             ?>
 
             <?php if ($vista_gestion == 'justificar'): ?>
-                <form method="POST" enctype="multipart/form-data" action="?vista=gestionar&tab=justificar">
+            <form method="POST" enctype="multipart/form-data" action="?vista=gestionar&tab=justificar">
 
-                    <input type="hidden" name="curso_id_gestion" value="<?= $curso_seleccionado_gestion ?>">
-                    <input type="hidden" name="fecha_gestion" value="<?= htmlspecialchars($fecha_seleccionada) ?>">
-                    <h3>Justificar Ausencias para el día: <?= htmlspecialchars(date('d/m/Y', strtotime($fecha_seleccionada))) ?></h3>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Alumno</th>
-                                <th>Estado (Materia más Ausente)</th>
-                                <th style="text-align:center;">Justificar</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php
-                            // Buscamos si existe al menos una ausencia 'Ausente' para esa fecha/curso
-                            $stmt_ausencias = $conn->prepare("SELECT Estado, Materia FROM asistencia asi JOIN materia m ON asi.Materia_idMateria = m.idMateria WHERE Alumno_DNI = ? AND Curso_idCurso = ? AND Dia = ?");
-                            $alumnos_con_ausencia = 0;
-                            while ($a = $alumnos->fetch_assoc()) {
-                                $stmt_ausencias->bind_param("sis", $a['DNI'], $curso_seleccionado_gestion, $fecha_seleccionada);
-                                $stmt_ausencias->execute();
-                                $res_ausencias = $stmt_ausencias->get_result();
-                                
-                                $estados = [];
-                                $materia_ausente = '';
-                                $has_ausente = false;
-                                $is_justified = false;
+                <input type="hidden" name="curso_id_gestion" value="<?= $curso_seleccionado_gestion ?>">
+                <input type="hidden" name="fecha_gestion" value="<?= htmlspecialchars($fecha_seleccionada) ?>">
+                <h3>Justificar Ausencias para el día: <?= htmlspecialchars(date('d/m/Y', strtotime($fecha_seleccionada))) ?></h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Alumno</th>
+                            <th>Estado (Materia más Ausente)</th>
+                            <th style="text-align:center;">Justificar</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php
+                        // Buscamos si existe al menos una ausencia 'Ausente' para esa fecha/curso
+                        $stmt_ausencias = $conn->prepare("SELECT Estado, Materia FROM asistencia asi JOIN materia m ON asi.Materia_idMateria = m.idMateria WHERE Alumno_DNI = ? AND Curso_idCurso = ? AND Dia = ?");
+                        $alumnos_con_ausencia = 0;
+                        
+                        // INICIO DEL BUCLE PRINCIPAL DE ALUMNOS 
+                        while ($a = $alumnos->fetch_assoc()) {
+                            $stmt_ausencias->bind_param("sis", $a['DNI'], $curso_seleccionado_gestion, $fecha_seleccionada);
+                            $stmt_ausencias->execute();
+                            $res_ausencias = $stmt_ausencias->get_result();
+                            
+                            $estados = []; 
+                            $materia_ausente = '';
+                            $has_ausente = false;
+                            $is_justified = false;
 
-                                while ($row = $res_ausencias->fetch_assoc()) {
-                                    $estados[] = $row['Estado'];
-                                    if ($row['Estado'] == 'Ausente') {
-                                        $has_ausente = true;
-                                        $materia_ausente = $row['Materia']; // Muestra la materia donde se registró la Ausencia
-                                    } elseif ($row['Estado'] == 'Justificado') {
-                                        $is_justified = true;
-                                    }
+                            // Bucle que calcula el estado real (Justificado, Ausente, Presente)
+                            while ($row = $res_ausencias->fetch_assoc()) {
+                                $estados[] = $row['Estado'];
+                                if ($row['Estado'] == 'Ausente') {
+                                    $has_ausente = true;
+                                    $materia_ausente = $row['Materia']; 
+                                    $alumnos_con_ausencia++; // Contar solo si está Ausente
+                                } elseif ($row['Estado'] == 'Justificado') {
+                                    $is_justified = true;
                                 }
-
-                                $display_estado = 'N/A';
-                                $checkbox = '';
-                                
-                                if (empty($estados)) {
-                                    $display_estado = "<span style='color:gray;'>Sin datos</span>";
-                                } elseif ($is_justified) {
-                                    $display_estado = "<span style='color:blue; font-weight:bold;'>Justificado</span>";
-                                } elseif ($has_ausente) {
-                                    $display_estado = "<strong style='color:red;'>Ausente</strong><br><small>({$materia_ausente})</small>";
-                                    $checkbox = "<input type='checkbox' name='justificar[]' value='{$a['DNI']}'>";
-                                    $checkbox .= "
-                                        <br>
-                                        <label style='font-size:0.8em;color:#333;'>📎 Adjuntar</label>
-                                        <input type='file' name='archivo_justificativo_{$a['DNI']}' accept='image/*,application/pdf' style='width:150px;font-size:0.8em;'>
-                                        <input type='text' name='motivo_{$a['DNI']}' placeholder='Motivo (opcional)' style='width:150px;font-size:0.8em;margin-top:5px;'>";
-
-                                    $alumnos_con_ausencia++;
-
-                                } else {
-                                    $display_estado = "<span style='color:green;'>Presente</span>";
-                                }
-
-                                echo "<tr>
-                                            <td>" . htmlspecialchars($a['Apellido'] . ', ' . $a['Nombre']) . "</td>
-                                            <td>{$display_estado}</td>
-                                            <td style='text-align:center;'>{$checkbox}</td>
-                                        </tr>";
                             }
-                            @$stmt_ausencias->close();
-                            ?>
-                        </tbody>
-                    </table>
-                    <?php if($alumnos_con_ausencia > 0): ?>
-                        <div class="acciones-btn" style="text-align: right; margin-top: 15px;"><button type="submit" name="justificar_ausencias" class="btn btn-guardar">✅ Justificar Seleccionados</button></div>
-                    <?php else: ?>
-                        <p style="text-align:center; font-weight:bold; margin-top:15px;">No hay alumnos ausentes para justificar en esta fecha.</p>
-                    <?php endif; ?>
-                </form>
-            <?php endif; ?>
+
+                            // --- LÓGICA DE ESTADO Y COLUMNA DE ACCIÓN ---
+                            $display_estado = 'N/A';
+                            $columna_justificar = ''; 
+                            $has_ausente_sin_justificar = false;
+
+                            // Determina el estado final y el contenido de la columna 'Justificar'
+                            if ($is_justified) {
+                                // ESTADO: JUSTIFICADO
+                                $display_estado = "<span style='color:blue; font-weight:bold;'>Justificado</span>";
+                                
+                                // 🌟 LÓGICA PARA VER EL ARCHIVO JUSTIFICATIVO 🌟
+                                $stmt_just = $conn->prepare("
+                                    SELECT jus.Archivo 
+                                    FROM justificativo jus 
+                                    JOIN asistencia asi ON jus.Asistencia_idAsistencia = asi.idAsistencia 
+                                    WHERE asi.Alumno_DNI = ? AND asi.Curso_idCurso = ? AND asi.Dia = ? LIMIT 1
+                                ");
+                                
+                                $stmt_just->bind_param("sis", $a['DNI'], $curso_seleccionado_gestion, $fecha_seleccionada);
+                                // ¡Estas líneas ahora se ejecutarán si $is_justified es TRUE!
+                                @$stmt_just->execute(); 
+                                $res_just = @$stmt_just->get_result();
+                                
+                                if ($res_just && $row_just = $res_just->fetch_assoc()) {
+                                    $ruta_archivo = htmlspecialchars($row_just['Archivo']);
+                                    $columna_justificar = "<a href='{$ruta_archivo}' target='_blank' class='btn btn-sm' style='padding: 5px 10px; font-size: 0.9em; background-color: #6c757d; display: inline-flex; align-items: center;'>📄 Ver Archivo</a>";
+                                } else {
+                                    $columna_justificar = "<span style='color:blue;'>Justificado (Sin Archivo)</span>";
+                                }
+                                @$stmt_just->close();
+                                
+                            } elseif ($has_ausente) {
+                                // ESTADO: AUSENTE (con campos para justificar)
+                                $display_estado = "<strong style='color:red;'>Ausente</strong><br><small>({$materia_ausente})</small>";
+                                $has_ausente_sin_justificar = true;
+                                $columna_justificar = "<input type='checkbox' name='justificar[]' value='{$a['DNI']}' style='vertical-align: top;'>";
+                                $columna_justificar .= "
+                                    <div style='display:inline-block; text-align:left; margin-left: 10px;'>
+                                        <label style='font-size:0.8em;color:#333; display:block;'>📎 Adjuntar</label>
+                                        <input type='file' name='archivo_justificativo_{$a['DNI']}' accept='image/*,application/pdf' style='width:150px;font-size:0.8em;'>
+                                        <input type='text' name='motivo_{$a['DNI']}' placeholder='Motivo (opcional)' style='width:150px;font-size:0.8em;margin-top:5px;'>
+                                    </div>";
+                                    
+                            } elseif (empty($estados)) {
+                                // ESTADO: SIN DATOS (No se registró ninguna asistencia para el día)
+                                $display_estado = "<span style='color:gray;'>Sin datos</span>";
+                                $columna_justificar = '—';
+                                
+                            } else {
+                                // ESTADO: PRESENTE (El único estado restante si tiene asistencias y no es Justificado/Ausente)
+                                $display_estado = "<span style='color:green;'>Presente</span>";
+                                $columna_justificar = '—';
+                            }
+
+                            // Generación de la fila de la tabla (usamos echo para mantener la simpleza)
+                            echo "<tr>
+                                <td>" . htmlspecialchars($a['Apellido'] . ', ' . $a['Nombre']) . "</td>
+                                <td>{$display_estado}</td>
+                                <td style='text-align:center;'>{$columna_justificar}</td> 
+                            </tr>";
+                        } // FIN del while ($a = $alumnos->fetch_assoc())
+                        @$stmt_ausencias->close();
+                        ?>
+                    </tbody>
+                </table>
+                <?php if($alumnos_con_ausencia > 0): ?>
+                    <div class="acciones-btn" style="text-align: right; margin-top: 15px;"><button type="submit" name="justificar_ausencias" class="btn btn-guardar">✅ Justificar Seleccionados</button></div>
+                <?php else: ?>
+                    <p style="text-align:center; font-weight:bold; margin-top:15px;">No hay alumnos ausentes para justificar en esta fecha.</p>
+                <?php endif; ?>
+            </form>
+        <?php endif; ?>
             </div>
             
         <?php elseif ($curso_seleccionado_gestion && !verificarPermisos($conn, $usuario_dni, $curso_seleccionado_gestion)): ?>
